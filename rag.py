@@ -1,6 +1,4 @@
 """
-rag.py - Núcleo del asistente RAG (Tutor de Cálculo: Derivadas)
-
 Flujo completo:
   1. extraer_paginas()      Ingesta: lee el texto del PDF, página por página
   2. dividir_en_chunks()    Chunking: corta cada página en fragmentos con solapamiento
@@ -17,7 +15,7 @@ import unicodedata
 
 from dotenv import load_dotenv
 
-load_dotenv()  # Carga variables de entorno desde el archivo .env
+load_dotenv()  
 
 import chromadb
 from google import genai
@@ -41,28 +39,25 @@ PDF_PATH = os.path.join(BASE_DIR, "derivadas.pdf")
 CHROMA_DIR = os.getenv("CHROMA_DIR", os.path.join(BASE_DIR, "chroma_db"))
 DOCUMENTO = "Cálculo diferencial e integral de funciones de una variable - Cap. 6: Derivadas"
 
-# Modelos y parámetros
 MODELO_LLM = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 MODELO_GROQ = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 MODELO_EMBEDDINGS = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
 DIMENSIONES = 768
 TEMPERATURA = float(os.getenv("TEMPERATURA", "0.2"))
 
-# Parámetros del pipeline RAG
 TAM_CHUNK = int(os.getenv("TAM_CHUNK", "1500"))
 SOLAPE = int(os.getenv("SOLAPE", "150"))
 TOP_K = int(os.getenv("TOP_K", "4"))
 UMBRAL_SIMILITUD = float(os.getenv("UMBRAL_SIMILITUD", "0.68"))
 
-PAGINAS_OMITIDAS = set()  # este PDF no tiene portada: todas las páginas tienen contenido
+PAGINAS_OMITIDAS = set() 
 MIN_CHARS_PAGINA = 100
 MIN_CHARS_CHUNK = 80
 LOTE_EMBEDDINGS = 5
 PAUSA_ENTRE_LOTES = 4.0
 MAX_MENSAJES_HISTORIAL = 12
-LARGO_FRAGMENTO_FUENTE = 300  # caracteres del fragmento que se muestran en cada fuente
+LARGO_FRAGMENTO_FUENTE = 300  
 
-# El nombre incluye "derivadas" para no mezclarse con índices de otros documentos
 NOMBRE_COLECCION = f"derivadas_c{TAM_CHUNK}_o{SOLAPE}"
 ARCHIVO_MARCA = os.path.join(CHROMA_DIR, f"{NOMBRE_COLECCION}.ok")
 
@@ -103,11 +98,12 @@ def _con_reintentos(funcion, intentos=6, espera_base=10):
             return funcion()
         except Exception as error:
             print(f"  Detalle del error: {error}")
-            # Errores que no se arreglan reintentando (modelo inexistente, clave inválida...)
+          
+            # Errores que no se arreglan reintentando
             if getattr(error, "code", None) in (400, 401, 403, 404):
                 print("  Este error no es temporal: revisa el modelo o la clave en el .env.")
                 raise
-            # Cuota diaria agotada: reintentar en segundos no sirve, hay que esperar al día siguiente
+            # Cuota diaria agotada
             if "PerDay" in str(error):
                 print("  Se agotó la cuota DIARIA de Gemini. Los fragmentos ya guardados se conservan:")
                 print("  vuelve a ejecutar el mismo comando cuando se reinicie la cuota.")
@@ -352,13 +348,9 @@ def generar_respuesta(pregunta, fragmentos, historial):
         espera_base=15,
     )
     texto = (respuesta.choices[0].message.content or "").strip()
-    # El formato de salida es texto plano: se quitan los asteriscos aunque el modelo los use
+
     return texto.replace("**", "")
 
-
-# ----------------------------------------------------------------------------
-# Saludos y despedidas: se responden sin consultar el índice ni el LLM
-# ----------------------------------------------------------------------------
 SALUDOS = {
     "hola", "holi", "hey", "buenas", "buenos dias", "buenas tardes",
     "buenas noches", "que tal", "hola que tal", "hello", "hi",
