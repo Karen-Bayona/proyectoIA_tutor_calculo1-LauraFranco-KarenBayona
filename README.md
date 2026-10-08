@@ -3,7 +3,9 @@
 Asistente conversacional experto en **derivadas**, basado en RAG (Retrieval-Augmented Generation). Responde preguntas a partir de un documento fuente, cita la página de la que sale cada respuesta y reconoce cuándo la información no está en el corpus.
 
 **Autoras:** Laura Franco y Karen Bayona
+#
 **Aplicación desplegada:** https://tutor-calculo-rag-karenbayona-laurafranco.onrender.com
+#
 **Repositorio:** https://github.com/Karen-Bayona/proyectoIA_tutor_calculo1-LauraFranco-KarenBayona
 
 > **Nota sobre el plan gratuito de Render:** el servicio se apaga tras 15 minutos sin tráfico. La primera visita después de una pausa puede tardar cerca de un minuto en responder. Abre la URL unos minutos antes de probarla.
