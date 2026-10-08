@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor de Cálculo: Derivadas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- MathJax: dibuja las fórmulas LaTeX que escribe el modelo, p. ej. \( f'(a) \) o \[ ... \] -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)']],
+                displayMath: [['\\[', '\\]'], ['$$', '$$']]
+            },
+            options: {
+                // Los elementos con esta clase (las fuentes) no se procesan
+                ignoreHtmlClass: 'tex2jax_ignore',
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="avatar">f'</div>
+            <div class="chat-title">
+                <h3>Tutor de Cálculo: Derivadas</h3>
+                <p>Activo • Asistente</p>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot">¡Hola! Soy tu tutor inteligente de derivadas. Pregúntame sobre la definición de derivada, las reglas de derivación, el teorema del valor medio, L'Hôpital, polinomios de Taylor o convexidad.</div>
+        </div>
+
+        <div class="chat-input-area">
+            <form id="chatForm">
+                <input type="text" id="userInput" placeholder="Envía un mensaje..." autocomplete="off" required>
+                <button type="submit" id="sendBtn">Enviar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // Historial de la conversación: se envía al servidor en cada mensaje
+        // para que el tutor entienda las preguntas de seguimiento.
+        const historial = [];
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // 1. Añadimos la burbuja del usuario inmediatamente
+            appendMessage(message, 'user');
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // 2. Indicador de carga
+            const loadingId = appendMessage('Pensando...', 'bot');
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, history: historial.slice(-12) })
+                });
+                const data = await response.json();
+
+                // Quitamos el mensaje de carga y ponemos la respuesta real
+                const loadingElement = document.getElementById(loadingId);
+                if (loadingElement) {
+                    loadingElement.remove();
+                }
+
+                // Respuesta + fuentes (documento, página y fragmento) cuando las hay.
+                // Las fuentes van aparte para que MathJax solo procese la respuesta.
+                appendMessage(data.response, 'bot', data.sources);
+
+                // Guardamos el turno en el historial solo si todo salió bien
+                if (response.ok) {
+                    historial.push({ role: 'user', text: message });
+                    historial.push({ role: 'bot', text: data.response });
+                }
+
+            } catch (error) {
+                const loadingElement = document.getElementById(loadingId);
+                if (loadingElement) {
+                    loadingElement.remove();
+                }
+                appendMessage('Hubo un error al conectar con el tutor.', 'bot');
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        });
+
+        // Limpieza cosmética del texto que sale del PDF (fuentes matemáticas mal codificadas).
+        // No afecta a la recuperación: solo mejora cómo se ve el fragmento en pantalla.
+        function limpiarFragmento(texto) {
+            return String(texto || '')
+                .replace(/\/NUL/g, '−')
+                .replace(/lKım/g, 'lím')
+                .replace(/fi (?=[a-záéíóúñ])/g, 'fi')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function appendMessage(text, sender, sources) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', sender);
+            // Identificador seguro basado en tiempo para evitar errores de sintaxis
+            const id = 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+            msgDiv.id = id;
+            msgDiv.style.whiteSpace = 'pre-wrap';
+
+            // Texto principal (aquí se renderizan las fórmulas)
+            const cuerpo = document.createElement('div');
+            cuerpo.textContent = sender === 'bot' ? String(text).replace(/\*\*/g, '') : text;
+            msgDiv.appendChild(cuerpo);
+
+            // Fuentes: documento, página y fragmento (MathJax las ignora)
+            if (sender === 'bot' && sources && sources.length > 0) {
+                const fuentes = document.createElement('div');
+                fuentes.classList.add('tex2jax_ignore');
+                fuentes.style.marginTop = '12px';
+                fuentes.style.fontSize = '0.85em';
+                fuentes.style.opacity = '0.85';
+                let t = 'Fuentes:';
+                sources.forEach((s) => {
+                    t += '\n• ' + s.documento + ', pág. ' + s.pagina + ': «' + limpiarFragmento(s.fragmento) + '»';
+                });
+                fuentes.textContent = t;
+                msgDiv.appendChild(fuentes);
+            }
+
+            chatMessages.appendChild(msgDiv);
+
+            // Dibuja las fórmulas de las respuestas del asistente
+            if (sender === 'bot' && window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise([cuerpo]).then(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }).catch(() => {});
+            }
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return id;
+        }
+    </script>
+</body>
+</html>

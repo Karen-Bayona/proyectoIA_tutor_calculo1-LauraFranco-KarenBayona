@@ -1,0 +1,25 @@
+{
+  "etiqueta": "umbral068",
+  "config": {
+    "TAM_CHUNK": 1500,
+    "SOLAPE": 150,
+    "TOP_K": 4,
+    "UMBRAL_SIMILITUD": 0.68,
+    "MODELO_LLM": "gemini-3.1-flash-lite",
+    "MODELO_EMBEDDINGS": "gemini-embedding-001"
+  },
+  "metricas": {
+    "faithfulness": 0.969,
+    "answer_relevancy": 0.812,
+    "context_precision": 0.85,
+    "context_recall": 1.0
+  },
+  "control_alucinaciones": {
+    "rechazo_correcto_fuera_del_documento": "4/4",
+    "falso_rechazo_dentro_del_documento": "0/16"
+  },
+  "similitud": {
+    "minima_preguntas_del_documento": 0.71,
+    "maxima_preguntas_fuera_del_documento": 0.653
+  }
+}

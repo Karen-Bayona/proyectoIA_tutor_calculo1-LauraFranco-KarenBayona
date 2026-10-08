@@ -1,0 +1,102 @@
+[
+  {
+    "pregunta": "¿Cuándo se dice que una función f es derivable en un punto a?",
+    "referencia": "Una función f definida en un intervalo I es derivable en un punto a de I si existe el límite de [f(x) - f(a)]/(x - a) cuando x tiende a a. Ese número L se llama la derivada de f en a y se representa por f'(a).",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cuáles son los dos problemas principales que motivaron el Cálculo y qué concepto resuelve cada uno?",
+    "referencia": "Los dos problemas principales son el de las tangentes (determinar la tangente a una curva en un punto) y el de las cuadraturas (determinar el área encerrada por una curva). La derivada permite resolver el problema de las tangentes y la integral el de las áreas.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cuál es la ecuación de la recta tangente a la gráfica de f en el punto (a, f(a))?",
+    "referencia": "Si f es derivable en a, la recta tangente a la gráfica de f en el punto (a, f(a)) es la de ecuación y = f(a) + f'(a)(x - a).",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cómo se define la velocidad instantánea de un móvil que se mueve sobre una recta?",
+    "referencia": "Si s(t) es la posición del móvil en el tiempo t, la velocidad instantánea en t = a se define como la razón de cambio puntual: el límite de [s(a+h) - s(a)]/h cuando h tiende a 0. El cociente [s(a+h) - s(a)]/h sin el límite es la velocidad media entre a y a+h.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cómo se relaciona la derivabilidad de f en un punto con las derivadas laterales?",
+    "referencia": "Si a no es un extremo del intervalo, f es derivable en a si y solo si existen las derivadas por la izquierda y por la derecha de f en a y ambas coinciden.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Qué relación hay entre derivabilidad y continuidad en un punto?",
+    "referencia": "Toda función derivable en un punto es continua en dicho punto.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cuáles son las reglas de derivación para el producto y el cociente de dos funciones?",
+    "referencia": "Si f y g son derivables en a, el producto cumple (fg)'(a) = f'(a)g(a) + f(a)g'(a). Si además g(x) es distinto de cero en todo el intervalo, el cociente cumple (f/g)'(a) = [f'(a)g(a) - f(a)g'(a)] / (g(a))^2.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Qué establece la regla de la cadena?",
+    "referencia": "Si f es derivable en a y g es derivable en f(a), la función compuesta h = g∘f es derivable en a y su derivada es h'(a) = g'(f(a)) f'(a).",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Qué dice la condición necesaria de extremo relativo?",
+    "referencia": "Si f tiene un extremo relativo (máximo o mínimo relativo) en un punto a y f es derivable en a, entonces la derivada se anula: f'(a) = 0.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cuál es el enunciado del teorema de Rolle?",
+    "referencia": "Si f es continua en [a, b], derivable en (a, b) y f(a) = f(b), entonces existe al menos un punto c en (a, b) tal que f'(c) = 0.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cuál es el enunciado del teorema del valor medio?",
+    "referencia": "Si f es continua en [a, b] y derivable en (a, b), entonces existe algún punto c en (a, b) tal que f'(c) = [f(b) - f(a)] / (b - a).",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cómo se relacionan la monotonía de una función derivable y el signo de su derivada?",
+    "referencia": "Si f es derivable en un intervalo I (con la posible excepción de sus extremos), f es creciente en I si y solo si f'(x) >= 0 para todo x de I, y es decreciente si y solo si f'(x) <= 0 para todo x de I.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Qué dice el teorema de derivación de la función inversa?",
+    "referencia": "Si f es derivable en un intervalo I con f'(x) distinta de cero en todo punto, entonces f es una biyección de I sobre el intervalo J = f(I) y su inversa es derivable en J, con (f^-1)'(y) = 1 / f'(f^-1(y)).",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Qué condiciones debe cumplir una indeterminación para aplicar la regla de L'Hôpital y qué concluye?",
+    "referencia": "Sean f y g derivables en (a, b) con g'(x) distinta de cero. Si, cuando x tiende a un extremo, se cumple que lim f = lim g = 0, o bien lim |g| = +infinito, y además existe lim f'(x)/g'(x) = L (finito o infinito), entonces lim f(x)/g(x) = L.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cómo se define el polinomio de Taylor de orden n de una función f en un punto a?",
+    "referencia": "Si f es n veces derivable en a, su polinomio de Taylor de orden n en a es T_n(f,a)(x) = f(a) + suma desde k = 1 hasta n de [f^(k)(a)/k!] (x - a)^k.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Cuándo una función es convexa y qué condición sobre la segunda derivada lo garantiza?",
+    "referencia": "Una función f es convexa en un intervalo I si para todo x, y de I y todo t entre 0 y 1 se cumple f(tx + (1-t)y) <= t f(x) + (1-t) f(y); es decir, la cuerda que une dos puntos de la gráfica queda por encima de la gráfica. Si f es dos veces derivable y f''(x) >= 0 en el intervalo, entonces f es convexa.",
+    "en_corpus": true
+  },
+  {
+    "pregunta": "¿Quién ganó el Mundial de fútbol de 2018?",
+    "referencia": "Lo siento, eso se sale del material de derivadas y de mis capacidades.",
+    "en_corpus": false
+  },
+  {
+    "pregunta": "¿Cómo se resuelve una ecuación diferencial lineal de primer orden?",
+    "referencia": "Lo siento, eso se sale del material de derivadas y de mis capacidades.",
+    "en_corpus": false
+  },
+  {
+    "pregunta": "¿Qué es una serie de Fourier y para qué sirve?",
+    "referencia": "Lo siento, eso se sale del material de derivadas y de mis capacidades.",
+    "en_corpus": false
+  },
+  {
+    "pregunta": "¿Cómo se multiplican dos matrices?",
+    "referencia": "Lo siento, eso se sale del material de derivadas y de mis capacidades.",
+    "en_corpus": false
+  }
+]

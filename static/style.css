@@ -1,0 +1,167 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: #fdf4f8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.chat-container {
+    width: 100%;
+    max-width: 400px;
+    height: 100%;
+    max-height: 700px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    border-radius: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+@media (min-width: 481px) {
+    .chat-container {
+        border-radius: 12px;
+        height: 85vh;
+        border: 1px solid #ead7e0;
+    }
+}
+
+/* Encabezado */
+.chat-header {
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #f3e4ec;
+    background: #fff;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #f48fb1, #ec6aa0, #d9468a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    margin-right: 12px;
+}
+
+.chat-title h3 {
+    font-size: 15px;
+    color: #262626;
+}
+
+.chat-title p {
+    font-size: 12px;
+    color: #8e8e8e;
+}
+
+/* Cuerpo del chat: fondo suave para que las burbujas blancas se distingan */
+.chat-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #f7f2f5;
+    align-items: stretch;
+}
+
+.message {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* Burbuja del usuario (pregunta): lado derecho, BLANCA */
+.message.user {
+    background: #ffffff;
+    color: #262626;
+    border: 1px solid #e6dde2;
+    align-self: flex-end !important;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+
+/* Burbuja del modelo (respuesta): lado izquierdo, ROSADA */
+.message.bot {
+    background: #f8c8dc;
+    color: #3a1a2a;
+    align-self: flex-start !important;
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+}
+
+/* Barra de escritura */
+.chat-input-area {
+    padding: 15px 20px;
+    border-top: 1px solid #f3e4ec;
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.chat-input-area form {
+    display: flex;
+    width: 100%;
+    border: 1px solid #e6dde2;
+    border-radius: 22px;
+    padding: 6px 12px;
+    align-items: center;
+    background: #fdfafc;
+}
+
+.chat-input-area input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+    color: #262626;
+    padding: 4px;
+}
+
+.chat-input-area button {
+    background: transparent;
+    border: none;
+    color: #d9468a;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    padding-left: 8px;
+}
+
+.chat-input-area button:disabled {
+    color: #f0b6d0;
+    cursor: default;
+}
+
+.fuentes {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    font-size: 0.85em;
+    white-space: normal;
+}
+.fuentes summary { cursor: pointer; font-weight: 600; }
+.fuente { margin-top: 8px; }
+.fuente a { color: #d63384; text-decoration: underline; }
+.fuente p { margin: 4px 0 0; opacity: 0.8; }
