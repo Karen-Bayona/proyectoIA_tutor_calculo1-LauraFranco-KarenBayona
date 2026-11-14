@@ -5,8 +5,8 @@ Flujo completo:
   3. embeber()              Vectorización: convierte texto en vectores con Gemini
   4. construir_indice()     Base vectorial: guarda vectores + metadatos en Chroma (en disco)
   5. buscar()               Recuperación: busca los top_k fragmentos más parecidos
-  6. generar_respuesta()    Generación: Groq responde usando SOLO esos fragmentos
-  7. responder()            Une todo, con historial de conversación
+  6. generar_respuesta()    Generación: Groq responde usando el contexto recuperado
+  7. responder()            Función central del Agente: coordina herramientas e historial
 """
 import os
 import re
@@ -15,7 +15,7 @@ import unicodedata
 
 from dotenv import load_dotenv
 
-load_dotenv()  
+load_dotenv()
 
 import chromadb
 from google import genai
@@ -50,13 +50,13 @@ SOLAPE = int(os.getenv("SOLAPE", "150"))
 TOP_K = int(os.getenv("TOP_K", "4"))
 UMBRAL_SIMILITUD = float(os.getenv("UMBRAL_SIMILITUD", "0.68"))
 
-PAGINAS_OMITIDAS = set() 
+PAGINAS_OMITIDAS = set()
 MIN_CHARS_PAGINA = 100
 MIN_CHARS_CHUNK = 80
 LOTE_EMBEDDINGS = 5
 PAUSA_ENTRE_LOTES = 4.0
 MAX_MENSAJES_HISTORIAL = 12
-LARGO_FRAGMENTO_FUENTE = 300  
+LARGO_FRAGMENTO_FUENTE = 300
 
 NOMBRE_COLECCION = f"derivadas_c{TAM_CHUNK}_o{SOLAPE}"
 ARCHIVO_MARCA = os.path.join(CHROMA_DIR, f"{NOMBRE_COLECCION}.ok")
@@ -98,15 +98,12 @@ def _con_reintentos(funcion, intentos=6, espera_base=10):
             return funcion()
         except Exception as error:
             print(f"  Detalle del error: {error}")
-          
-            # Errores que no se arreglan reintentando
+
             if getattr(error, "code", None) in (400, 401, 403, 404):
                 print("  Este error no es temporal: revisa el modelo o la clave en el .env.")
                 raise
-            # Cuota diaria agotada
             if "PerDay" in str(error):
-                print("  Se agotó la cuota DIARIA de Gemini. Los fragmentos ya guardados se conservan:")
-                print("  vuelve a ejecutar el mismo comando cuando se reinicie la cuota.")
+                print("  Se agotó la cuota DIARIA de Gemini. Los fragmentos ya guardados se conservan.")
                 raise
             if n == intentos:
                 raise
@@ -130,8 +127,6 @@ def limpiar_texto(texto):
 
 
 def _texto_de_pagina(pagina):
-    """Extrae el texto de una página. El modo 'layout' separa mejor las palabras en este PDF
-    (el modo normal deja cosas como 'm ovim iento'); si falla, se usa el modo normal."""
     try:
         return pagina.extract_text(extraction_mode="layout") or ""
     except Exception:
@@ -179,7 +174,6 @@ def dividir_en_chunks(texto, tam=None, solape=None):
 # ----------------------------------------------------------------------------
 def embeber(textos, tipo, intentos=6, espera_base=10):
     vectores = []
-    # Enviamos el nombre sin el prefijo "models/" (ej.: gemini-embedding-001)
     nombre_modelo = MODELO_EMBEDDINGS.replace("models/", "").strip()
 
     for i in range(0, len(textos), LOTE_EMBEDDINGS):
@@ -258,9 +252,10 @@ def construir_indice(reiniciar=False):
         f.write(f"{coleccion.count()} fragmentos\n")
     print(f"Índice listo: {coleccion.count()} fragmentos en '{CHROMA_DIR}'")
 
+
 def asegurar_indice():
     if not os.path.exists(ARCHIVO_MARCA):
-        if os.getenv("RENDER"):  # Render define esta variable automáticamente
+        if os.getenv("RENDER"):
             raise RuntimeError(
                 "Falta el índice vectorial (chroma_db/*.ok). "
                 "Súbelo al repositorio; no se reconstruye en producción."
@@ -294,7 +289,72 @@ def buscar(pregunta, top_k=None):
 
 
 # ----------------------------------------------------------------------------
-# 6. GENERACIÓN: Groq responde usando el contexto del documento
+# TOOLS DEL AGENTE
+# ----------------------------------------------------------------------------
+def buscar_en_base(consulta: str) -> str:
+    """Busca en el documento de cálculo (derivadas.pdf) fragmentos teóricos,
+    definiciones y teoremas relevantes. Usar exclusivamente para preguntas
+    conceptuales o teóricas de la materia."""
+    TOP_K_TOOL = 4
+    candidatos = buscar(consulta, top_k=TOP_K_TOOL)
+    fragmentos = [f for f in candidatos if f["similitud"] >= UMBRAL_SIMILITUD]
+
+    if not fragmentos:
+        return "No se encontraron fragmentos relevantes en la base de conocimientos para esta consulta."
+
+    resultado = []
+    for f in fragmentos:
+        resultado.append(
+            f'[{f["documento"]} | Página {f["pagina"]} | Similitud: {f["similitud"]}]\n{f["texto"]}'
+        )
+    return "\n\n".join(resultado)
+
+
+def generar_referencia_apa(documento: str = "derivadas.pdf") -> str:
+    """Genera la cita y referencia bibliográfica formal en formato APA
+    del documento base de la asignatura (derivadas.pdf). Usar cuando
+    el usuario solicite la fuente bibliográfica o la citación oficial."""
+    return (
+        "Pérez, J. (s.f.). Cálculo diferencial e integral de funciones de una variable - "
+        "Capítulo 6: Derivadas. Departamento de Análisis Matemático, Universidad de Granada."
+    )
+
+
+def buscar_web_segura(consulta: str) -> str:
+    """Busca información pública o actual en la web (solo dominios permitidos)."""
+    DOMINIOS_PERMITIDOS = [
+        "es.wikipedia.org",
+        "matematicas.ugr.es",
+        "rae.es",
+        "mathshistory.st-andrews.ac.uk",
+    ]
+
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if not tavily_key:
+        return "Error técnico en búsqueda web: falta TAVILY_API_KEY en el .env"
+
+    try:
+        from tavily import TavilyClient
+
+        client = TavilyClient(api_key=tavily_key)
+        response = client.search(
+            query=consulta,
+            max_results=3,
+            include_domains=DOMINIOS_PERMITIDOS,
+        )
+        resultados = []
+        for item in response.get("results", []):
+            resultados.append(
+                f"[web: {item.get('url')}] Título: {item.get('title')}\n{item.get('content')}"
+            )
+        return "\n".join(resultados) if resultados else "No se encontraron resultados en los sitios web permitidos."
+    except Exception as e:
+        print(f"[TAVILY] Error: {e}")
+        return f"Error técnico en búsqueda web: {str(e)}"
+
+
+# ----------------------------------------------------------------------------
+# 6. GENERACIÓN Y UTILIDADES
 # ----------------------------------------------------------------------------
 def formatear_historial(historial):
     lineas = []
@@ -324,14 +384,10 @@ def reformular_pregunta(pregunta, historial):
         return pregunta
 
 
-def generar_respuesta(pregunta, fragmentos, historial):
-    contexto = "\n".join(
-        f'<fragmento pagina="{f["pagina"]}">\n{f["texto"]}\n</fragmento>'
-        for f in fragmentos
-    )
+def generar_respuesta(pregunta, contexto_texto, historial):
     mensaje_usuario = (
         f"<historial>\n{formatear_historial(historial)}\n</historial>\n\n"
-        f"<contexto>\n{contexto}\n</contexto>\n\n"
+        f"<contexto>\n{contexto_texto}\n</contexto>\n\n"
         f"<pregunta>\n{pregunta}\n</pregunta>"
     )
     cliente = get_cliente_groq()
@@ -348,8 +404,8 @@ def generar_respuesta(pregunta, fragmentos, historial):
         espera_base=15,
     )
     texto = (respuesta.choices[0].message.content or "").strip()
-
     return texto.replace("**", "")
+
 
 SALUDOS = {
     "hola", "holi", "hey", "buenas", "buenos dias", "buenas tardes",
@@ -362,7 +418,6 @@ DESPEDIDAS = {
 
 
 def _normalizar(texto):
-    """Minúsculas, sin tildes ni signos: '¡Hola!' -> 'hola'."""
     texto = unicodedata.normalize("NFD", texto.lower())
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     texto = re.sub(r"[^a-z0-9 ]", " ", texto)
@@ -373,31 +428,112 @@ def _respuesta_fija(texto):
     return {"respuesta": texto, "fuentes": [], "contextos": [], "mejor_similitud": 0.0}
 
 
+def limpiar_consulta_web(texto):
+    """Quita frases como 'busca en la web' para enviar a Tavily solo el tema."""
+    texto = re.sub(
+        r"(?i)\b(busca(r)?\s+en\s+(la\s+)?web|en\s+internet|en\s+la\s+web)\b",
+        "",
+        texto,
+    )
+    return texto.strip(" ,.:;")
+
+
 # ----------------------------------------------------------------------------
-# 7. FLUJO COMPLETO
+# 7. FLUJO COMPLETO DEL AGENTE
 # ----------------------------------------------------------------------------
 def responder(pregunta, historial=None):
     historial = (historial or [])[-MAX_MENSAJES_HISTORIAL:]
+    pregunta_limpia = pregunta.strip()
+    mensaje = _normalizar(pregunta_limpia)
 
-    mensaje = _normalizar(pregunta)
     if mensaje in SALUDOS:
         return _respuesta_fija(RESPUESTA_SALUDO)
     if mensaje in DESPEDIDAS:
         return _respuesta_fija(RESPUESTA_DESPEDIDA)
 
-    pregunta_busqueda = reformular_pregunta(pregunta, historial)
-    candidatos = buscar(pregunta_busqueda)
-    mejor = candidatos[0]["similitud"] if candidatos else 0.0
-    fragmentos = [f for f in candidatos if f["similitud"] >= UMBRAL_SIMILITUD]
+    if re.search(r"\b(apa|referencia|fuente)\b", mensaje):
+        respuesta_apa = generar_referencia_apa()
+        return {
+            "respuesta": respuesta_apa,
+            "fuentes": [{"documento": "derivadas.pdf", "pagina": 1, "fragmento": respuesta_apa}],
+            "contextos": [respuesta_apa],
+            "mejor_similitud": 1.0,
+        }
 
-    if not fragmentos or mejor < UMBRAL_SIMILITUD:
-        return {"respuesta": FRASE_FUERA_DE_CORPUS, "fuentes": [], "contextos": [], "mejor_similitud": mejor}
+    # 2. Reformular pregunta si hay historial
+    pregunta_optimizada = reformular_pregunta(pregunta, historial)
 
-    respuesta = generar_respuesta(pregunta, fragmentos, historial)
+    # Si el usuario pide explícitamente buscar en la web, se usa Tavily de inmediato
+    if "busca en la web" in mensaje or "en la web" in mensaje or "internet" in mensaje:
+        consulta_web = limpiar_consulta_web(pregunta_optimizada)
+        contexto_texto = buscar_web_segura(consulta_web)
+        print(f"[DEBUG] consulta web: {consulta_web}")
+        print(f"[DEBUG] contexto web: {contexto_texto[:300]}")
 
-    if FRASE_FUERA_DE_CORPUS in respuesta:
-        fuentes = []
-    else:
+        if "No se encontraron resultados" in contexto_texto or "Error técnico" in contexto_texto:
+            return {
+                "respuesta": FRASE_FUERA_DE_CORPUS,
+                "fuentes": [],
+                "contextos": [],
+                "mejor_similitud": 0.0,
+            }
+
+        respuesta = generar_respuesta(pregunta, contexto_texto, historial)
+        fuentes = [
+            {
+                "documento": "Búsqueda Web Segura (Tavily / Wikipedia)",
+                "pagina": 1,
+                "fragmento": contexto_texto[:LARGO_FRAGMENTO_FUENTE],
+            }
+        ]
+        return {
+            "respuesta": respuesta,
+            "fuentes": fuentes,
+            "contextos": [contexto_texto],
+            "mejor_similitud": 0.85,
+        }
+
+    # 3. Invocar la Tool de búsqueda vectorial en la base de conocimientos normal
+    contexto_texto = buscar_en_base(pregunta_optimizada)
+
+    # Evaluar si la base no encontró nada
+    if "No se encontraron fragmentos relevantes" in contexto_texto:
+        # Fallback automático a la web si el PDF tampoco tiene nada
+        consulta_web = limpiar_consulta_web(pregunta_optimizada)
+        contexto_texto = buscar_web_segura(consulta_web)
+        print(f"[DEBUG] fallback web: {consulta_web}")
+        print(f"[DEBUG] contexto web: {contexto_texto[:300]}")
+
+        if "No se encontraron resultados" in contexto_texto or "Error técnico" in contexto_texto:
+            return {
+                "respuesta": FRASE_FUERA_DE_CORPUS,
+                "fuentes": [],
+                "contextos": [],
+                "mejor_similitud": 0.0,
+            }
+        respuesta = generar_respuesta(pregunta, contexto_texto, historial)
+        fuentes = [
+            {
+                "documento": "Búsqueda Web Segura (Tavily)",
+                "pagina": 1,
+                "fragmento": contexto_texto[:LARGO_FRAGMENTO_FUENTE],
+            }
+        ]
+        return {
+            "respuesta": respuesta,
+            "fuentes": fuentes,
+            "contextos": [contexto_texto],
+            "mejor_similitud": 0.75,
+        }
+
+    # 4. Generar respuesta con Groq usando el contexto del PDF
+    respuesta = generar_respuesta(pregunta, contexto_texto, historial)
+
+    candidatos = []
+    fuentes = []
+
+    if FRASE_FUERA_DE_CORPUS not in respuesta:
+        candidatos = buscar(pregunta_optimizada, top_k=3)
         fuentes = [
             {
                 "documento": frag["documento"],
@@ -408,12 +544,15 @@ def responder(pregunta, historial=None):
                     else frag["texto"]
                 ),
             }
-            for frag in fragmentos[:3]
+            for frag in candidatos
+            if frag["similitud"] >= UMBRAL_SIMILITUD
         ]
+
+    mejor_sim = candidatos[0]["similitud"] if candidatos else 0.0
 
     return {
         "respuesta": respuesta,
         "fuentes": fuentes,
-        "contextos": [frag["texto"] for frag in fragmentos],
-        "mejor_similitud": mejor,
+        "contextos": [contexto_texto],
+        "mejor_similitud": mejor_sim,
     }

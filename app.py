@@ -339,6 +339,28 @@ def ejecutar_comando(argumentos):
             print("Uso: python app.py --comparar <antes> <despues>   (por ejemplo: python app.py --comparar base mejora1)")
             sys.exit(1)
         comparar(resto[0], resto[1])
+    elif comando == "probar-tool":
+        from rag import buscar_en_base
+        print("\n--- PROBANDO TOOL buscar_en_base SIN LLM ---")
+        salida = buscar_en_base("¿Qué es una derivada?")
+        print(salida)
+        print("\n--- PRUEBA FINALIZADA EXITOSAMENTE ---")
+    elif comando == "probar-casos":
+        from rag import responder
+    
+        casos = [
+            ("Caso 1 (Teoría)", "¿Qué es la derivada de una función en un punto?"),
+            ("Caso 2 (Socrático)", "Calcula la derivada de f(x) = x^2 usando la definición."),
+            ("Caso 4 (APA)", "¿De dónde sacaste esta información? Dame la referencia APA."),
+            ("Caso 6 (Fuera de corpus)", "¿Quién ganó el mundial de fútbol de 2022?"),
+            ("Caso 7 (Formato)", "Explica la regla de la cadena.")
+        ]
+    
+        for nombre, pregunta in casos:
+            print(f"\n================ [{nombre}] ================")
+            print(f"Entrada: {pregunta}")
+            resultado = responder(pregunta)
+            print(f"Respuesta del Agente:\n{resultado['respuesta']}")
     else:
         print(f"Comando desconocido: {argumentos[0]}\n\n{AYUDA}")
         sys.exit(1)
