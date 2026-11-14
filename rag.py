@@ -26,6 +26,7 @@ from pypdf import PdfReader
 from prompts import (
     FRASE_FUERA_DE_CORPUS,
     PROMPT_REFORMULAR,
+    PROMPT_TEMA,
     RESPUESTA_DESPEDIDA,
     RESPUESTA_SALUDO,
     SYSTEM_PROMPT,
@@ -73,7 +74,7 @@ def get_cliente():
     """Cliente Gemini para Embeddings."""
     global _cliente_gemini
     if _cliente_gemini is None:
-        clave = os.getenv("GEMINI_API_KEY")
+        clave = (os.getenv("GEMINI_API_KEY") or "").strip()
         if not clave:
             raise RuntimeError("Falta la variable GEMINI_API_KEY en el .env")
         _cliente_gemini = genai.Client(api_key=clave)
@@ -84,7 +85,7 @@ def get_cliente_groq():
     """Cliente Groq para Generación y Reformulación de preguntas."""
     global _cliente_groq
     if _cliente_groq is None:
-        clave = os.getenv("GROQ_API_KEY")
+        clave = (os.getenv("GROQ_API_KEY") or "").strip()
         if not clave:
             raise RuntimeError("Falta la variable GROQ_API_KEY en el .env")
         _cliente_groq = Groq(api_key=clave)
@@ -329,7 +330,7 @@ def buscar_web_segura(consulta: str) -> str:
         "mathshistory.st-andrews.ac.uk",
     ]
 
-    tavily_key = os.getenv("TAVILY_API_KEY")
+    tavily_key = (os.getenv("TAVILY_API_KEY") or "").strip()
     if not tavily_key:
         return "Error técnico en búsqueda web: falta TAVILY_API_KEY en el .env"
 
@@ -444,6 +445,24 @@ def limpiar_consulta_web(texto):
     return texto.strip(" ,.:;")
 
 
+def es_tema_calculo(pregunta):
+    """Filtro de tema: solo se permite buscar en la web si la pregunta trata de cálculo
+    diferencial o de su historia. Si el filtro falla, se rechaza por seguridad."""
+    try:
+        cliente = get_cliente_groq()
+        respuesta = cliente.chat.completions.create(
+            model=MODELO_GROQ,
+            messages=[{"role": "user", "content": PROMPT_TEMA.format(pregunta=pregunta)}],
+            temperature=0,
+        )
+        texto = _normalizar(respuesta.choices[0].message.content or "")
+        print(f"[DEBUG] verificar_tema: {texto!r}")
+        return texto.startswith("si")
+    except Exception as error:
+        print(f"[DEBUG] verificar_tema falló ({error}); se rechaza por seguridad.")
+        return False
+
+
 def _fuentes_web(contexto_texto):
     """Convierte el texto de buscar_web_segura en una lista de fuentes web (con URL)."""
     fuentes = []
@@ -523,8 +542,10 @@ def responder(pregunta, historial=None):
 
     # Si el usuario pide explícitamente buscar en la web, se usa Tavily de inmediato
     if "busca en la web" in mensaje or "en la web" in mensaje or "internet" in mensaje:
-        tools = ["buscar_web_segura"]
         consulta_web = limpiar_consulta_web(pregunta_optimizada)
+        if not es_tema_calculo(consulta_web):
+            return _rechazo(["verificar_tema"])
+        tools = ["verificar_tema", "buscar_web_segura"]
         contexto_texto = buscar_web_segura(consulta_web)
         print(f"[DEBUG] consulta web: {consulta_web}")
         print(f"[DEBUG] contexto web: {contexto_texto[:300]}")
@@ -541,8 +562,10 @@ def responder(pregunta, historial=None):
     # Evaluar si la base no encontró nada
     if "No se encontraron fragmentos relevantes" in contexto_texto:
         # Fallback automático a la web si el PDF tampoco tiene nada
-        tools = ["buscar_en_base", "buscar_web_segura"]
         consulta_web = limpiar_consulta_web(pregunta_optimizada)
+        if not es_tema_calculo(consulta_web):
+            return _rechazo(["buscar_en_base", "verificar_tema"])
+        tools = ["buscar_en_base", "verificar_tema", "buscar_web_segura"]
         contexto_texto = buscar_web_segura(consulta_web)
         print(f"[DEBUG] fallback web: {consulta_web}")
         print(f"[DEBUG] contexto web: {contexto_texto[:300]}")

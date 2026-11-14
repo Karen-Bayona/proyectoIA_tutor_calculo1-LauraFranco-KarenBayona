@@ -97,3 +97,19 @@ Si la pregunta ya se entiende sola, devuélvela igual.
 <pregunta>
 {pregunta}
 </pregunta>"""
+
+
+# Prompt auxiliar: filtro de tema. Decide si la pregunta tiene que ver con cálculo diferencial
+# (o su historia) ANTES de permitir una búsqueda en la web.
+PROMPT_TEMA = """Decide si la pregunta del estudiante trata sobre cálculo diferencial (derivadas, límites, continuidad, teorema del valor medio, L'Hôpital, polinomios de Taylor, convexidad, optimización) o sobre la historia, los matemáticos y los libros relacionados con esos temas.
+Responde ÚNICAMENTE con la palabra SI o la palabra NO.
+
+Ejemplos:
+- Biografía de Guillaume de l'Hôpital -> SI
+- En qué libro se publicaron por primera vez las reglas de derivación -> SI
+- Cuál es la receta de la bandeja paisa -> NO
+- Quién ganó el mundial de fútbol de 2022 -> NO
+
+<pregunta>
+{pregunta}
+</pregunta>"""
