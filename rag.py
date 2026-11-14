@@ -325,7 +325,7 @@ def buscar_web_segura(consulta: str) -> str:
     """Busca información pública o actual en la web (solo dominios permitidos)."""
     DOMINIOS_PERMITIDOS = [
         "es.wikipedia.org",
-        "matematicas.ugr.es",
+        "analisismatematico.ugr.es",
         "rae.es",
         "mathshistory.st-andrews.ac.uk",
     ]
