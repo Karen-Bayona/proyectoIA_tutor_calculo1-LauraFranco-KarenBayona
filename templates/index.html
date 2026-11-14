@@ -14,7 +14,7 @@
                 displayMath: [['\\[', '\\]'], ['$$', '$$']]
             },
             options: {
-                // Los elementos con esta clase (las fuentes) no se procesan
+                // Los elementos con esta clase (tools y fuentes) no se procesan
                 ignoreHtmlClass: 'tex2jax_ignore',
                 skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
             }
@@ -83,9 +83,8 @@
                     loadingElement.remove();
                 }
 
-                // Respuesta + fuentes (documento, página y fragmento) cuando las hay.
-                // Las fuentes van aparte para que MathJax solo procese la respuesta.
-                appendMessage(data.response, 'bot', data.sources);
+                // Respuesta + tools usadas + fuentes separadas (base y web)
+                appendMessage(data.response, 'bot', data.sources, data.tools);
 
                 // Guardamos el turno en el historial solo si todo salió bien
                 if (response.ok) {
@@ -107,7 +106,6 @@
         });
 
         // Limpieza cosmética del texto que sale del PDF (fuentes matemáticas mal codificadas).
-        // No afecta a la recuperación: solo mejora cómo se ve el fragmento en pantalla.
         function limpiarFragmento(texto) {
             return String(texto || '')
                 .replace(/\/NUL/g, '−')
@@ -117,7 +115,60 @@
                 .trim();
         }
 
-        function appendMessage(text, sender, sources) {
+        // Línea con las herramientas que usó el agente en esta respuesta
+        function crearBloqueTools(tools) {
+            const bloque = document.createElement('div');
+            bloque.classList.add('tools-usadas', 'tex2jax_ignore');
+            bloque.textContent = 'Herramientas usadas: ' + tools.join(', ');
+            return bloque;
+        }
+
+        // Bloque de fuentes (uno para la base y otro para la web)
+        function crearBloqueFuentes(titulo, lista, esWeb) {
+            const bloque = document.createElement('div');
+            bloque.classList.add('fuentes', 'tex2jax_ignore');
+
+            const encabezado = document.createElement('div');
+            encabezado.classList.add('fuentes-titulo');
+            encabezado.textContent = titulo;
+            bloque.appendChild(encabezado);
+
+            lista.forEach((s) => {
+                const item = document.createElement('div');
+                item.classList.add('fuente');
+
+                if (esWeb) {
+                    // Solo se permiten enlaces http(s)
+                    if (s.url && /^https?:\/\//i.test(s.url)) {
+                        const enlace = document.createElement('a');
+                        enlace.href = s.url;
+                        enlace.target = '_blank';
+                        enlace.rel = 'noopener noreferrer';
+                        enlace.textContent = s.documento || s.url;
+                        item.appendChild(enlace);
+                    } else {
+                        item.textContent = s.documento || 'Fuente web';
+                    }
+                } else {
+                    const enlace = document.createElement('a');
+                    enlace.href = '/documento#page=' + encodeURIComponent(s.pagina);
+                    enlace.target = '_blank';
+                    enlace.rel = 'noopener noreferrer';
+                    enlace.textContent = s.documento + ', pág. ' + s.pagina;
+                    item.appendChild(enlace);
+                }
+
+                if (s.fragmento) {
+                    const fragmento = document.createElement('p');
+                    fragmento.textContent = '«' + limpiarFragmento(s.fragmento) + '»';
+                    item.appendChild(fragmento);
+                }
+                bloque.appendChild(item);
+            });
+            return bloque;
+        }
+
+        function appendMessage(text, sender, sources, tools) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message', sender);
             // Identificador seguro basado en tiempo para evitar errores de sintaxis
@@ -130,19 +181,22 @@
             cuerpo.textContent = sender === 'bot' ? String(text).replace(/\*\*/g, '') : text;
             msgDiv.appendChild(cuerpo);
 
-            // Fuentes: documento, página y fragmento (MathJax las ignora)
-            if (sender === 'bot' && sources && sources.length > 0) {
-                const fuentes = document.createElement('div');
-                fuentes.classList.add('tex2jax_ignore');
-                fuentes.style.marginTop = '12px';
-                fuentes.style.fontSize = '0.85em';
-                fuentes.style.opacity = '0.85';
-                let t = 'Fuentes:';
-                sources.forEach((s) => {
-                    t += '\n• ' + s.documento + ', pág. ' + s.pagina + ': «' + limpiarFragmento(s.fragmento) + '»';
-                });
-                fuentes.textContent = t;
-                msgDiv.appendChild(fuentes);
+            if (sender === 'bot') {
+                // Tools usadas
+                if (tools && tools.length > 0) {
+                    msgDiv.appendChild(crearBloqueTools(tools));
+                }
+
+                // Fuentes separadas: base (PDF) y web
+                const lista = sources || [];
+                const deBase = lista.filter((s) => s.tipo !== 'web');
+                const deWeb = lista.filter((s) => s.tipo === 'web');
+                if (deBase.length > 0) {
+                    msgDiv.appendChild(crearBloqueFuentes('Fuentes de la base (PDF)', deBase, false));
+                }
+                if (deWeb.length > 0) {
+                    msgDiv.appendChild(crearBloqueFuentes('Fuentes web', deWeb, true));
+                }
             }
 
             chatMessages.appendChild(msgDiv);

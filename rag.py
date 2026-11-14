@@ -425,7 +425,13 @@ def _normalizar(texto):
 
 
 def _respuesta_fija(texto):
-    return {"respuesta": texto, "fuentes": [], "contextos": [], "mejor_similitud": 0.0}
+    return {
+        "respuesta": texto,
+        "fuentes": [],
+        "contextos": [],
+        "mejor_similitud": 0.0,
+        "tools": [],
+    }
 
 
 def limpiar_consulta_web(texto):
@@ -436,6 +442,50 @@ def limpiar_consulta_web(texto):
         texto,
     )
     return texto.strip(" ,.:;")
+
+
+def _fuentes_web(contexto_texto):
+    """Convierte el texto de buscar_web_segura en una lista de fuentes web (con URL)."""
+    fuentes = []
+    patron = r"\[web: (\S+?)\] Título: (.*?)\n(.*?)(?=\n\[web: |\Z)"
+    for url, titulo, contenido in re.findall(patron, contexto_texto, flags=re.S):
+        contenido = contenido.strip()
+        recorte = contenido[:LARGO_FRAGMENTO_FUENTE]
+        if len(contenido) > LARGO_FRAGMENTO_FUENTE:
+            recorte += "..."
+        fuentes.append(
+            {
+                "tipo": "web",
+                "documento": titulo.strip() or url,
+                "url": url,
+                "pagina": None,
+                "fragmento": recorte,
+            }
+        )
+    return fuentes
+
+
+def _resultado_web(pregunta, contexto_texto, historial, tools, similitud):
+    """Genera la respuesta a partir del contexto web. Si el modelo rechaza, no muestra fuentes."""
+    respuesta = generar_respuesta(pregunta, contexto_texto, historial)
+    rechazada = FRASE_FUERA_DE_CORPUS in respuesta
+    return {
+        "respuesta": respuesta,
+        "fuentes": [] if rechazada else _fuentes_web(contexto_texto),
+        "contextos": [contexto_texto],
+        "mejor_similitud": 0.0 if rechazada else similitud,
+        "tools": tools,
+    }
+
+
+def _rechazo(tools):
+    return {
+        "respuesta": FRASE_FUERA_DE_CORPUS,
+        "fuentes": [],
+        "contextos": [],
+        "mejor_similitud": 0.0,
+        "tools": tools,
+    }
 
 
 # ----------------------------------------------------------------------------
@@ -455,9 +505,17 @@ def responder(pregunta, historial=None):
         respuesta_apa = generar_referencia_apa()
         return {
             "respuesta": respuesta_apa,
-            "fuentes": [{"documento": "derivadas.pdf", "pagina": 1, "fragmento": respuesta_apa}],
+            "fuentes": [
+                {
+                    "tipo": "base",
+                    "documento": "derivadas.pdf",
+                    "pagina": 1,
+                    "fragmento": respuesta_apa,
+                }
+            ],
             "contextos": [respuesta_apa],
             "mejor_similitud": 1.0,
+            "tools": ["generar_referencia_apa"],
         }
 
     # 2. Reformular pregunta si hay historial
@@ -465,66 +523,34 @@ def responder(pregunta, historial=None):
 
     # Si el usuario pide explícitamente buscar en la web, se usa Tavily de inmediato
     if "busca en la web" in mensaje or "en la web" in mensaje or "internet" in mensaje:
+        tools = ["buscar_web_segura"]
         consulta_web = limpiar_consulta_web(pregunta_optimizada)
         contexto_texto = buscar_web_segura(consulta_web)
         print(f"[DEBUG] consulta web: {consulta_web}")
         print(f"[DEBUG] contexto web: {contexto_texto[:300]}")
 
         if "No se encontraron resultados" in contexto_texto or "Error técnico" in contexto_texto:
-            return {
-                "respuesta": FRASE_FUERA_DE_CORPUS,
-                "fuentes": [],
-                "contextos": [],
-                "mejor_similitud": 0.0,
-            }
+            return _rechazo(tools)
 
-        respuesta = generar_respuesta(pregunta, contexto_texto, historial)
-        fuentes = [
-            {
-                "documento": "Búsqueda Web Segura (Tavily / Wikipedia)",
-                "pagina": 1,
-                "fragmento": contexto_texto[:LARGO_FRAGMENTO_FUENTE],
-            }
-        ]
-        return {
-            "respuesta": respuesta,
-            "fuentes": fuentes,
-            "contextos": [contexto_texto],
-            "mejor_similitud": 0.85,
-        }
+        return _resultado_web(pregunta, contexto_texto, historial, tools, 0.85)
 
     # 3. Invocar la Tool de búsqueda vectorial en la base de conocimientos normal
+    tools = ["buscar_en_base"]
     contexto_texto = buscar_en_base(pregunta_optimizada)
 
     # Evaluar si la base no encontró nada
     if "No se encontraron fragmentos relevantes" in contexto_texto:
         # Fallback automático a la web si el PDF tampoco tiene nada
+        tools = ["buscar_en_base", "buscar_web_segura"]
         consulta_web = limpiar_consulta_web(pregunta_optimizada)
         contexto_texto = buscar_web_segura(consulta_web)
         print(f"[DEBUG] fallback web: {consulta_web}")
         print(f"[DEBUG] contexto web: {contexto_texto[:300]}")
 
         if "No se encontraron resultados" in contexto_texto or "Error técnico" in contexto_texto:
-            return {
-                "respuesta": FRASE_FUERA_DE_CORPUS,
-                "fuentes": [],
-                "contextos": [],
-                "mejor_similitud": 0.0,
-            }
-        respuesta = generar_respuesta(pregunta, contexto_texto, historial)
-        fuentes = [
-            {
-                "documento": "Búsqueda Web Segura (Tavily)",
-                "pagina": 1,
-                "fragmento": contexto_texto[:LARGO_FRAGMENTO_FUENTE],
-            }
-        ]
-        return {
-            "respuesta": respuesta,
-            "fuentes": fuentes,
-            "contextos": [contexto_texto],
-            "mejor_similitud": 0.75,
-        }
+            return _rechazo(tools)
+
+        return _resultado_web(pregunta, contexto_texto, historial, tools, 0.75)
 
     # 4. Generar respuesta con Groq usando el contexto del PDF
     respuesta = generar_respuesta(pregunta, contexto_texto, historial)
@@ -536,6 +562,7 @@ def responder(pregunta, historial=None):
         candidatos = buscar(pregunta_optimizada, top_k=3)
         fuentes = [
             {
+                "tipo": "base",
                 "documento": frag["documento"],
                 "pagina": frag["pagina"],
                 "fragmento": (
@@ -555,4 +582,5 @@ def responder(pregunta, historial=None):
         "fuentes": fuentes,
         "contextos": [contexto_texto],
         "mejor_similitud": mejor_sim,
+        "tools": tools,
     }
